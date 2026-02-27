@@ -375,6 +375,48 @@ final class BonsplitTests: XCTestCase {
     }
 
     @MainActor
+    func testTogglePaneZoomTracksState() {
+        let controller = BonsplitController()
+        guard let originalPane = controller.focusedPaneId else {
+            return XCTFail("Expected focused pane")
+        }
+
+        // Single-pane layouts cannot be zoomed.
+        XCTAssertFalse(controller.togglePaneZoom(inPane: originalPane))
+        XCTAssertNil(controller.zoomedPaneId)
+
+        guard controller.splitPane(originalPane, orientation: .horizontal) != nil else {
+            return XCTFail("Expected splitPane to create a new pane")
+        }
+
+        XCTAssertTrue(controller.togglePaneZoom(inPane: originalPane))
+        XCTAssertEqual(controller.zoomedPaneId, originalPane)
+        XCTAssertTrue(controller.isSplitZoomed)
+
+        XCTAssertTrue(controller.togglePaneZoom(inPane: originalPane))
+        XCTAssertNil(controller.zoomedPaneId)
+        XCTAssertFalse(controller.isSplitZoomed)
+    }
+
+    @MainActor
+    func testSplitClearsExistingPaneZoom() {
+        let controller = BonsplitController()
+        guard let originalPane = controller.focusedPaneId else {
+            return XCTFail("Expected focused pane")
+        }
+
+        guard let secondPane = controller.splitPane(originalPane, orientation: .horizontal) else {
+            return XCTFail("Expected splitPane to create a new pane")
+        }
+
+        XCTAssertTrue(controller.togglePaneZoom(inPane: secondPane))
+        XCTAssertEqual(controller.zoomedPaneId, secondPane)
+
+        _ = controller.splitPane(secondPane, orientation: .vertical)
+        XCTAssertNil(controller.zoomedPaneId, "Splitting should reset zoom state")
+    }
+
+    @MainActor
     func testRequestTabContextActionForwardsToDelegate() {
         let controller = BonsplitController()
         let pane = controller.focusedPaneId!

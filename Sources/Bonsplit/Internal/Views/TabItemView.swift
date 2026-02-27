@@ -39,6 +39,7 @@ enum TabItemStyling {
 struct TabItemView: View {
     let tab: TabItem
     let isSelected: Bool
+    let showsZoomIndicator: Bool
     let appearance: BonsplitConfiguration.Appearance
     let saturation: Double
     let controlShortcutDigit: Int?
@@ -47,10 +48,12 @@ struct TabItemView: View {
     let contextMenuState: TabContextMenuState
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onZoomToggle: () -> Void
     let onContextAction: (TabContextAction) -> Void
 
     @State private var isHovered = false
     @State private var isCloseHovered = false
+    @State private var isZoomHovered = false
     @State private var showGlobeFallback = true
     @State private var globeFallbackWorkItem: DispatchWorkItem?
     @State private var lastIsLoadingObserved = false
@@ -124,6 +127,35 @@ struct TabItemView: View {
                             : TabBarColors.inactiveText(for: appearance)
                     )
                     .saturation(saturation)
+
+                if showsZoomIndicator {
+                    Button {
+                        onZoomToggle()
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: max(8, TabBarMetrics.titleFontSize - 2), weight: .semibold))
+                            .foregroundStyle(
+                                isZoomHovered
+                                    ? TabBarColors.activeText(for: appearance)
+                                    : TabBarColors.inactiveText(for: appearance)
+                            )
+                            .frame(width: TabBarMetrics.closeButtonSize, height: TabBarMetrics.closeButtonSize)
+                            .background(
+                                Circle()
+                                    .fill(
+                                        isZoomHovered
+                                            ? TabBarColors.hoveredTabBackground(for: appearance)
+                                            : .clear
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        isZoomHovered = hovering
+                    }
+                    .saturation(saturation)
+                    .accessibilityLabel("Exit zoom")
+                }
             }
 
             Spacer(minLength: 0)
@@ -285,80 +317,79 @@ struct TabItemView: View {
         if tab.isPinned { parts.append("Pinned") }
         if tab.showsNotificationBadge { parts.append("Unread") }
         if tab.isDirty { parts.append("Modified") }
+        if showsZoomIndicator { parts.append("Zoomed") }
         return parts.joined(separator: ", ")
     }
 
     @ViewBuilder
     private var contextMenuContent: some View {
-        Button("Rename Tab…") {
-            onContextAction(.rename)
-        }
+        contextButton("Rename Tab…", action: .rename)
 
         if contextMenuState.hasCustomTitle {
-            Button("Remove Custom Tab Name") {
-                onContextAction(.clearName)
-            }
+            contextButton("Remove Custom Tab Name", action: .clearName)
         }
 
         Divider()
 
-        Button("Close Tabs to Left") {
-            onContextAction(.closeToLeft)
-        }
-        .disabled(!contextMenuState.canCloseToLeft)
+        contextButton("Close Tabs to Left", action: .closeToLeft)
+            .disabled(!contextMenuState.canCloseToLeft)
 
-        Button("Close Tabs to Right") {
-            onContextAction(.closeToRight)
-        }
-        .disabled(!contextMenuState.canCloseToRight)
+        contextButton("Close Tabs to Right", action: .closeToRight)
+            .disabled(!contextMenuState.canCloseToRight)
 
-        Button("Close Other Tabs") {
-            onContextAction(.closeOthers)
-        }
-        .disabled(!contextMenuState.canCloseOthers)
+        contextButton("Close Other Tabs", action: .closeOthers)
+            .disabled(!contextMenuState.canCloseOthers)
 
-        Button("Move Tab…") {
-            onContextAction(.move)
-        }
+        contextButton("Move Tab…", action: .move)
 
         Divider()
 
-        Button("New Terminal Tab to Right") {
-            onContextAction(.newTerminalToRight)
-        }
+        contextButton("New Terminal Tab to Right", action: .newTerminalToRight)
 
-        Button("New Browser Tab to Right") {
-            onContextAction(.newBrowserToRight)
-        }
+        contextButton("New Browser Tab to Right", action: .newBrowserToRight)
 
         if contextMenuState.isBrowser {
             Divider()
 
-            Button("Reload Tab") {
-                onContextAction(.reload)
-            }
+            contextButton("Reload Tab", action: .reload)
 
-            Button("Duplicate Tab") {
-                onContextAction(.duplicate)
-            }
+            contextButton("Duplicate Tab", action: .duplicate)
         }
 
         Divider()
 
-        Button(contextMenuState.isPinned ? "Unpin Tab" : "Pin Tab") {
-            onContextAction(.togglePin)
+        if contextMenuState.hasSplits {
+            contextButton(
+                contextMenuState.isZoomed ? "Exit Zoom" : "Zoom Pane",
+                action: .toggleZoom
+            )
         }
 
+        contextButton(
+            contextMenuState.isPinned ? "Unpin Tab" : "Pin Tab",
+            action: .togglePin
+        )
+
         if contextMenuState.isUnread {
-            Button("Mark Tab as Read") {
-                onContextAction(.markAsRead)
-            }
-            .disabled(!contextMenuState.canMarkAsRead)
+            contextButton("Mark Tab as Read", action: .markAsRead)
+                .disabled(!contextMenuState.canMarkAsRead)
         } else {
-            Button("Mark Tab as Unread") {
-                onContextAction(.markAsUnread)
+            contextButton("Mark Tab as Unread", action: .markAsUnread)
+                .disabled(!contextMenuState.canMarkAsUnread)
+        }
+    }
+
+    @ViewBuilder
+    private func contextButton(_ title: String, action: TabContextAction) -> some View {
+        if let shortcut = contextMenuState.shortcuts[action] {
+            Button(title) {
+                onContextAction(action)
             }
-            .disabled(!contextMenuState.canMarkAsUnread)
+            .keyboardShortcut(shortcut)
+        } else {
+            Button(title) {
+                onContextAction(action)
+            }
         }
     }
 

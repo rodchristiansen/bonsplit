@@ -8,6 +8,9 @@ final class SplitViewController {
     /// The root node of the split tree
     var rootNode: SplitNode
 
+    /// Currently zoomed pane. When set, rendering should only show this pane.
+    var zoomedPaneId: PaneID?
+
     /// Currently focused pane ID
     var focusedPaneId: PaneID?
 
@@ -83,10 +86,39 @@ final class SplitViewController {
         return rootNode.findPane(focusedPaneId)
     }
 
+    var zoomedNode: SplitNode? {
+        guard let zoomedPaneId else { return nil }
+        return rootNode.findNode(containing: zoomedPaneId)
+    }
+
+    @discardableResult
+    func clearPaneZoom() -> Bool {
+        guard zoomedPaneId != nil else { return false }
+        zoomedPaneId = nil
+        return true
+    }
+
+    @discardableResult
+    func togglePaneZoom(_ paneId: PaneID) -> Bool {
+        guard rootNode.findPane(paneId) != nil else { return false }
+
+        if zoomedPaneId == paneId {
+            zoomedPaneId = nil
+            return true
+        }
+
+        // Match Ghostty behavior: a single-pane layout can't be zoomed.
+        guard rootNode.allPaneIds.count > 1 else { return false }
+        zoomedPaneId = paneId
+        focusedPaneId = paneId
+        return true
+    }
+
     // MARK: - Split Operations
 
     /// Split the specified pane in the given orientation
     func splitPane(_ paneId: PaneID, orientation: SplitOrientation, with newTab: TabItem? = nil) {
+        clearPaneZoom()
         rootNode = splitNodeRecursively(
             node: rootNode,
             targetPaneId: paneId,
@@ -150,6 +182,7 @@ final class SplitViewController {
 
     /// Split a pane with a specific tab, optionally inserting the new pane first
     func splitPaneWithTab(_ paneId: PaneID, orientation: SplitOrientation, tab: TabItem, insertFirst: Bool) {
+        clearPaneZoom()
         rootNode = splitNodeWithTabRecursively(
             node: rootNode,
             targetPaneId: paneId,
@@ -236,6 +269,10 @@ final class SplitViewController {
             focusedPaneId = siblingPaneId
         } else if let firstPane = rootNode.allPaneIds.first {
             focusedPaneId = firstPane
+        }
+
+        if let zoomedPaneId, rootNode.findPane(zoomedPaneId) == nil {
+            self.zoomedPaneId = nil
         }
     }
 

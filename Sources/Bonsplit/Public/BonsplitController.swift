@@ -572,6 +572,37 @@ public final class BonsplitController {
         }
     }
 
+    // MARK: - Split Zoom
+
+    /// Currently zoomed pane ID, if any.
+    public var zoomedPaneId: PaneID? {
+        internalController.zoomedPaneId
+    }
+
+    public var isSplitZoomed: Bool {
+        internalController.zoomedPaneId != nil
+    }
+
+    @discardableResult
+    public func clearPaneZoom() -> Bool {
+        internalController.clearPaneZoom()
+    }
+
+    /// Toggle zoom for a pane. When zoomed, only that pane is rendered in the split area.
+    /// Passing nil toggles the currently focused pane.
+    @discardableResult
+    public func togglePaneZoom(inPane paneId: PaneID? = nil) -> Bool {
+        let targetPaneId = paneId ?? focusedPaneId
+        guard let targetPaneId else { return false }
+        return internalController.togglePaneZoom(targetPaneId)
+    }
+
+    // MARK: - Context Menu Shortcut Hints
+
+    /// Keyboard shortcuts to display in tab context menus, keyed by context action.
+    /// Set by the host app to sync with its customizable keyboard shortcut settings.
+    public var contextMenuShortcuts: [TabContextAction: KeyboardShortcut] = [:]
+
     // MARK: - Query Methods
 
     /// Get all tab IDs

@@ -15,4 +15,5 @@ public enum TabContextAction: String, CaseIterable, Sendable {
     case togglePin
     case markAsRead
     case markAsUnread
+    case toggleZoom
 }

@@ -32,6 +32,16 @@ indirect enum SplitNode: Identifiable, Equatable {
         }
     }
 
+    /// Find the leaf node for a pane by ID.
+    func findNode(containing paneId: PaneID) -> SplitNode? {
+        switch self {
+        case .pane(let state):
+            return state.id == paneId ? self : nil
+        case .split(let state):
+            return state.first.findNode(containing: paneId) ?? state.second.findNode(containing: paneId)
+        }
+    }
+
     /// Get all pane IDs in the tree
     var allPaneIds: [PaneID] {
         switch self {

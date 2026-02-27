@@ -40,6 +40,9 @@ struct TabContextMenuState {
     let canCloseToLeft: Bool
     let canCloseToRight: Bool
     let canCloseOthers: Bool
+    let isZoomed: Bool
+    let hasSplits: Bool
+    let shortcuts: [TabContextAction: KeyboardShortcut]
 
     var canMarkAsUnread: Bool {
         !isUnread
@@ -216,9 +219,11 @@ struct TabBarView: View {
     @ViewBuilder
     private func tabItem(for tab: TabItem, at index: Int) -> some View {
         let contextMenuState = contextMenuState(for: tab, at: index)
+        let showsZoomIndicator = splitViewController.zoomedPaneId == pane.id && pane.selectedTabId == tab.id
         TabItemView(
             tab: tab,
             isSelected: pane.selectedTabId == tab.id,
+            showsZoomIndicator: showsZoomIndicator,
             appearance: appearance,
             saturation: tabBarSaturation,
             controlShortcutDigit: tabControlShortcutDigit(for: index, tabCount: pane.tabs.count),
@@ -246,6 +251,9 @@ struct TabBarView: View {
                 withTransaction(Transaction(animation: nil)) {
                     _ = controller.closeTab(TabID(id: tab.id), inPane: pane.id)
                 }
+            },
+            onZoomToggle: {
+                _ = splitViewController.togglePaneZoom(pane.id)
             },
             onContextAction: { action in
                 controller.requestTabContextAction(action, for: TabID(id: tab.id), inPane: pane.id)
@@ -301,7 +309,10 @@ struct TabBarView: View {
             hasCustomTitle: tab.hasCustomTitle,
             canCloseToLeft: canCloseToLeft,
             canCloseToRight: canCloseToRight,
-            canCloseOthers: canCloseOthers
+            canCloseOthers: canCloseOthers,
+            isZoomed: splitViewController.zoomedPaneId == pane.id,
+            hasSplits: splitViewController.rootNode.allPaneIds.count > 1,
+            shortcuts: controller.contextMenuShortcuts
         )
     }
 
