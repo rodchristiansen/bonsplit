@@ -584,11 +584,23 @@ enum TabControlShortcutModifier: Equatable {
 
 enum TabControlShortcutHintPolicy {
     static let intentionalHoldDelay: TimeInterval = 0.30
+    static let showHintsOnCommandHoldKey = "shortcutHintShowOnCommandHold"
+    static let defaultShowHintsOnCommandHold = true
 
-    static func hintModifier(for modifierFlags: NSEvent.ModifierFlags) -> TabControlShortcutModifier? {
+    static func showHintsOnCommandHoldEnabled(defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: showHintsOnCommandHoldKey) != nil else {
+            return defaultShowHintsOnCommandHold
+        }
+        return defaults.bool(forKey: showHintsOnCommandHoldKey)
+    }
+
+    static func hintModifier(
+        for modifierFlags: NSEvent.ModifierFlags,
+        defaults: UserDefaults = .standard
+    ) -> TabControlShortcutModifier? {
         let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags == [.control] { return .control }
-        if flags == [.command] { return .command }
+        if flags == [.command], showHintsOnCommandHoldEnabled(defaults: defaults) { return .command }
         return nil
     }
 
@@ -610,9 +622,10 @@ enum TabControlShortcutHintPolicy {
         hostWindowNumber: Int?,
         hostWindowIsKey: Bool,
         eventWindowNumber: Int?,
-        keyWindowNumber: Int?
+        keyWindowNumber: Int?,
+        defaults: UserDefaults = .standard
     ) -> Bool {
-        hintModifier(for: modifierFlags) != nil &&
+        hintModifier(for: modifierFlags, defaults: defaults) != nil &&
             isCurrentWindow(
                 hostWindowNumber: hostWindowNumber,
                 hostWindowIsKey: hostWindowIsKey,

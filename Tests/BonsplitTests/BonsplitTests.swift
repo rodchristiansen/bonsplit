@@ -489,65 +489,99 @@ final class BonsplitTests: XCTestCase {
     }
 
     func testTabControlShortcutHintPolicyRequiresCommandOrControlOnly() {
-        XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.control]))
-        XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.command]))
-        XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: []))
-        XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.control, .shift]))
-        XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command, .option]))
+        withShortcutHintDefaultsSuite { defaults in
+            defaults.set(true, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
+
+            XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults))
+            XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [], defaults: defaults))
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.control, .shift], defaults: defaults))
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command, .option], defaults: defaults))
+        }
+    }
+
+    func testTabControlShortcutHintPolicyCanDisableCommandHints() {
+        withShortcutHintDefaultsSuite { defaults in
+            defaults.set(false, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
+
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
+            XCTAssertEqual(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults), .control)
+        }
+    }
+
+    func testTabControlShortcutHintPolicyDefaultsToShowingCommandHints() {
+        withShortcutHintDefaultsSuite { defaults in
+            defaults.removeObject(forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
+
+            XCTAssertEqual(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults), .command)
+        }
     }
 
     func testTabControlShortcutHintsAreScopedToCurrentKeyWindow() {
-        XCTAssertTrue(
-            TabControlShortcutHintPolicy.shouldShowHints(
-                for: [.command],
-                hostWindowNumber: 42,
-                hostWindowIsKey: true,
-                eventWindowNumber: 42,
-                keyWindowNumber: 42
-            )
-        )
+        withShortcutHintDefaultsSuite { defaults in
+            defaults.set(true, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
 
-        XCTAssertFalse(
-            TabControlShortcutHintPolicy.shouldShowHints(
-                for: [.command],
-                hostWindowNumber: 42,
-                hostWindowIsKey: true,
-                eventWindowNumber: 7,
-                keyWindowNumber: 42
+            XCTAssertTrue(
+                TabControlShortcutHintPolicy.shouldShowHints(
+                    for: [.command],
+                    hostWindowNumber: 42,
+                    hostWindowIsKey: true,
+                    eventWindowNumber: 42,
+                    keyWindowNumber: 42,
+                    defaults: defaults
+                )
             )
-        )
 
-        XCTAssertFalse(
-            TabControlShortcutHintPolicy.shouldShowHints(
-                for: [.command],
-                hostWindowNumber: 42,
-                hostWindowIsKey: false,
-                eventWindowNumber: 42,
-                keyWindowNumber: 42
+            XCTAssertFalse(
+                TabControlShortcutHintPolicy.shouldShowHints(
+                    for: [.command],
+                    hostWindowNumber: 42,
+                    hostWindowIsKey: true,
+                    eventWindowNumber: 7,
+                    keyWindowNumber: 42,
+                    defaults: defaults
+                )
             )
-        )
+
+            XCTAssertFalse(
+                TabControlShortcutHintPolicy.shouldShowHints(
+                    for: [.command],
+                    hostWindowNumber: 42,
+                    hostWindowIsKey: false,
+                    eventWindowNumber: 42,
+                    keyWindowNumber: 42,
+                    defaults: defaults
+                )
+            )
+        }
     }
 
     func testTabControlShortcutHintsFallbackToKeyWindowWhenEventWindowMissing() {
-        XCTAssertTrue(
-            TabControlShortcutHintPolicy.shouldShowHints(
-                for: [.control],
-                hostWindowNumber: 42,
-                hostWindowIsKey: true,
-                eventWindowNumber: nil,
-                keyWindowNumber: 42
-            )
-        )
+        withShortcutHintDefaultsSuite { defaults in
+            defaults.set(true, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
 
-        XCTAssertFalse(
-            TabControlShortcutHintPolicy.shouldShowHints(
-                for: [.control],
-                hostWindowNumber: 42,
-                hostWindowIsKey: true,
-                eventWindowNumber: nil,
-                keyWindowNumber: 7
+            XCTAssertTrue(
+                TabControlShortcutHintPolicy.shouldShowHints(
+                    for: [.control],
+                    hostWindowNumber: 42,
+                    hostWindowIsKey: true,
+                    eventWindowNumber: nil,
+                    keyWindowNumber: 42,
+                    defaults: defaults
+                )
             )
-        )
+
+            XCTAssertFalse(
+                TabControlShortcutHintPolicy.shouldShowHints(
+                    for: [.control],
+                    hostWindowNumber: 42,
+                    hostWindowIsKey: true,
+                    eventWindowNumber: nil,
+                    keyWindowNumber: 7,
+                    defaults: defaults
+                )
+            )
+        }
     }
 
     func testSelectedTabNeverShowsHoverBackground() {
@@ -574,5 +608,17 @@ final class BonsplitTests: XCTestCase {
         segments = TabBarStyling.separatorSegments(totalWidth: 100, gap: nil)
         XCTAssertEqual(segments.left, 100, accuracy: 0.0001)
         XCTAssertEqual(segments.right, 0, accuracy: 0.0001)
+    }
+
+    private func withShortcutHintDefaultsSuite(_ body: (UserDefaults) -> Void) {
+        let suiteName = "BonsplitShortcutHintPolicyTests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create defaults suite")
+            return
+        }
+
+        defaults.removePersistentDomain(forName: suiteName)
+        body(defaults)
+        defaults.removePersistentDomain(forName: suiteName)
     }
 }
