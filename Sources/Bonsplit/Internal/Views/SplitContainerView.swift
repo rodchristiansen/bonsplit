@@ -756,6 +756,12 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
             // Skip position updates during animation
             guard !isAnimating else { return }
             guard let splitView = notification.object as? NSSplitView else { return }
+#if DEBUG
+            let subframes = splitView.arrangedSubviews.enumerated().map { (i, v) in
+                "\(i)=\(Int(v.frame.width))x\(Int(v.frame.height))"
+            }.joined(separator: " ")
+            dlog("split.didResize split=\(splitState.id.uuidString.prefix(5)) orient=\(splitState.orientation == .horizontal ? "H" : "V") container=\(Int(splitView.frame.width))x\(Int(splitView.frame.height)) subs=[\(subframes)] anim=\(isAnimating ? 1 : 0) sync=\(isSyncingProgrammatically ? 1 : 0)")
+#endif
             if isSyncingProgrammatically || splitContainerProgrammaticSyncDepth > 0 {
                 return
             }
@@ -822,11 +828,11 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
                     )
 #endif
                     let statePosition = self.splitState.dividerPosition
-                    // Re-assert on the next runloop turn to avoid recursive NSSplitView resize callbacks.
-                    DispatchQueue.main.async { [weak self, weak splitView] in
-                        guard let self, let splitView else { return }
-                        self.syncPosition(statePosition, in: splitView)
-                    }
+                    // Re-assert synchronously. setPositionSafely sets isSyncingProgrammatically=true,
+                    // so the recursive splitViewDidResizeSubviews call is caught by the guard above.
+                    // Deferring to the next runloop turn would allow the transient frame to propagate
+                    // through SwiftUI layout → ghostty terminal resize → reflow, causing content shifts.
+                    self.syncPosition(statePosition, in: splitView)
                     self.onGeometryChange?(false)
                     return
                 }
