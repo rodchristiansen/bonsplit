@@ -2,6 +2,51 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
 
+private final class TabBarInteractionContainerView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
+private final class TabBarInteractionHostingView<Content: View>: NSHostingView<Content> {
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
+private struct TabBarHostingWrapper<Content: View>: NSViewRepresentable {
+    let content: Content
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let containerView = TabBarInteractionContainerView()
+        containerView.setAccessibilityElement(true)
+        containerView.setAccessibilityIdentifier("paneTabBar")
+
+        let hostingView = TabBarInteractionHostingView(rootView: content)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.setAccessibilityElement(false)
+        containerView.addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+        ])
+
+        context.coordinator.hostingView = hostingView
+        return containerView
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.hostingView?.rootView = content
+    }
+
+    final class Coordinator {
+        var hostingView: TabBarInteractionHostingView<Content>?
+    }
+}
+
 /// Drop zone positions for creating splits
 public enum DropZone: Equatable {
     case center
@@ -174,10 +219,12 @@ struct PaneContainerView<Content: View, EmptyContent: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             // Tab bar
-            TabBarView(
-                pane: pane,
-                isFocused: isFocused,
-                showSplitButtons: showSplitButtons
+            TabBarHostingWrapper(
+                content: TabBarView(
+                    pane: pane,
+                    isFocused: isFocused,
+                    showSplitButtons: showSplitButtons
+                )
             )
 
             // Content area with drop zones
