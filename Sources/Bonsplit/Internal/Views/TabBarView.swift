@@ -30,7 +30,7 @@ func tabBarLeadingTrafficLightInset(
     tabBarMinXInWindow: CGFloat,
     trailingPadding: CGFloat = 14
 ) -> CGFloat {
-    max(0, trafficLightMaxX + trailingPadding)
+    max(0, trafficLightMaxX + trailingPadding - tabBarMinXInWindow)
 }
 
 final class TabBarLeadingInsetPassthroughView: NSView {
