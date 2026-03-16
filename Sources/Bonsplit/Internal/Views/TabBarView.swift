@@ -178,6 +178,8 @@ struct TabBarView: View {
     @State private var isHoveringTabBar = false
     @State private var leadingTrafficLightInset: CGFloat = 78
     @StateObject private var controlKeyMonitor = TabControlShortcutKeyMonitor()
+    @AppStorage("workspaceButtonsFadeMode")
+    private var workspaceButtonsFadeMode = "disabled"
     @AppStorage("workspaceTitlebarVisible")
     private var showWorkspaceTitlebar = true
 
@@ -206,8 +208,12 @@ struct TabBarView: View {
         isFocused && controlKeyMonitor.isShortcutHintVisible
     }
 
+    private var fadeButtonsEnabled: Bool {
+        workspaceButtonsFadeMode == "enabled"
+    }
+
     private var shouldShowSplitButtonsNow: Bool {
-        showWorkspaceTitlebar || isHoveringTabBar
+        !fadeButtonsEnabled || isHoveringTabBar
     }
 
     private var effectiveLeadingInset: CGFloat {
