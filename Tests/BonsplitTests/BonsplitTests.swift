@@ -731,7 +731,7 @@ final class BonsplitTests: XCTestCase {
     }
 
     @MainActor
-    func testTranslucentSplitContainersStayClear() {
+    func testTranslucentSplitWrappersStayClear() {
         let appearance = BonsplitConfiguration.Appearance(
             enableAnimations: false,
             chromeColors: .init(backgroundHex: "#11223380")
@@ -783,11 +783,12 @@ final class BonsplitTests: XCTestCase {
         XCTAssertEqual(splitView.arrangedSubviews.count, 2)
 
         let dividerBackground = splitView.layer?.backgroundColor.flatMap(NSColor.init(cgColor:))
-        XCTAssertNotNil(dividerBackground, "Expected split view to keep its divider background")
+        XCTAssertNotNil(dividerBackground, "Expected split view to be layer-backed")
         XCTAssertEqual(
             dividerBackground?.alphaComponent ?? 0,
-            CGFloat(128.0 / 255.0),
-            accuracy: 0.01
+            0,
+            accuracy: 0.001,
+            "Split root should stay clear so translucent pane chrome is painted only once"
         )
 
         for container in splitView.arrangedSubviews {
