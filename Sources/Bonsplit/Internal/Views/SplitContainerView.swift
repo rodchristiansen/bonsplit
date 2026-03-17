@@ -100,6 +100,13 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
         TabBarColors.nsColorPaneBackground(for: appearance)
     }
 
+    private var wrapperContainerBackgroundColor: NSColor {
+        // PaneContainerView already paints the pane chrome. Leaving the split-only wrapper
+        // containers translucent as well stacks alpha and makes transparent themes look opaque
+        // as soon as a workspace becomes a real NSSplitView.
+        chromeBackgroundColor.alphaComponent < 0.999 ? .clear : chromeBackgroundColor
+    }
+
     func makeNSView(context: Context) -> NSSplitView {
 #if DEBUG
         let splitView: ThemedSplitView = {
@@ -124,7 +131,7 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
         // replacing pane<->split content. We swap the hosted content within these containers.
         let firstContainer = NSView()
         firstContainer.wantsLayer = true
-        firstContainer.layer?.backgroundColor = chromeBackgroundColor.cgColor
+        firstContainer.layer?.backgroundColor = wrapperContainerBackgroundColor.cgColor
         firstContainer.layer?.masksToBounds = true
         let firstController = makeHostingController(for: splitState.first)
         installHostingController(firstController, into: firstContainer)
@@ -133,7 +140,7 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
 
         let secondContainer = NSView()
         secondContainer.wantsLayer = true
-        secondContainer.layer?.backgroundColor = chromeBackgroundColor.cgColor
+        secondContainer.layer?.backgroundColor = wrapperContainerBackgroundColor.cgColor
         secondContainer.layer?.masksToBounds = true
         let secondController = makeHostingController(for: splitState.second)
         installHostingController(secondController, into: secondContainer)
@@ -326,9 +333,9 @@ struct SplitContainerView<Content: View, EmptyContent: View>: NSViewRepresentabl
             let firstContainer = arranged[0]
             let secondContainer = arranged[1]
             firstContainer.wantsLayer = true
-            firstContainer.layer?.backgroundColor = chromeBackgroundColor.cgColor
+            firstContainer.layer?.backgroundColor = wrapperContainerBackgroundColor.cgColor
             secondContainer.wantsLayer = true
-            secondContainer.layer?.backgroundColor = chromeBackgroundColor.cgColor
+            secondContainer.layer?.backgroundColor = wrapperContainerBackgroundColor.cgColor
 
             updateHostedContent(
                 in: firstContainer,
