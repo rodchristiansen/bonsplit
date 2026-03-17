@@ -802,6 +802,63 @@ final class BonsplitTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testSplitContentAlphaMatchesSinglePane() {
+        let appearance = BonsplitConfiguration.Appearance(
+            enableAnimations: false,
+            chromeColors: .init(backgroundHex: "#11223380")
+        )
+        let expectedAlpha = CGFloat(128.0 / 255.0)
+        let samplePoint = NSPoint(x: 100, y: 100)
+
+        let singlePaneController = BonsplitController(
+            configuration: BonsplitConfiguration(appearance: appearance)
+        )
+        _ = singlePaneController.createTab(title: "Base")
+
+        guard let singlePaneAlpha = renderedAlpha(
+            for: singlePaneController,
+            samplePoint: samplePoint
+        ) else {
+            XCTFail("Expected single-pane rendered alpha")
+            return
+        }
+        XCTAssertEqual(
+            singlePaneAlpha,
+            expectedAlpha,
+            accuracy: 0.03,
+            "Single-pane content should preserve the configured translucent alpha"
+        )
+
+        let splitController = BonsplitController(
+            configuration: BonsplitConfiguration(appearance: appearance)
+        )
+        _ = splitController.createTab(title: "Base")
+        guard let sourcePane = splitController.focusedPaneId else {
+            XCTFail("Expected focused pane")
+            return
+        }
+        guard splitController.splitPane(sourcePane, orientation: .horizontal) != nil else {
+            XCTFail("Expected splitPane to create a new pane")
+            return
+        }
+
+        guard let splitAlpha = renderedAlpha(
+            for: splitController,
+            samplePoint: samplePoint
+        ) else {
+            XCTFail("Expected split rendered alpha")
+            return
+        }
+
+        XCTAssertEqual(
+            splitAlpha,
+            singlePaneAlpha,
+            accuracy: 0.03,
+            "Split mode should render the same content alpha as single-pane mode"
+        )
+    }
+
     private func withShortcutHintDefaultsSuite(_ body: (UserDefaults) -> Void) {
         let suiteName = "BonsplitShortcutHintPolicyTests-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
@@ -824,5 +881,59 @@ final class BonsplitTests: XCTestCase {
             }
         }
         return nil
+    }
+
+    @MainActor
+    private func renderedAlpha(
+        for controller: BonsplitController,
+        samplePoint: NSPoint,
+        size: NSSize = NSSize(width: 800, height: 600)
+    ) -> CGFloat? {
+        let hostingView = NSHostingView(
+            rootView: BonsplitView(controller: controller) { _, _ in
+                Color.clear
+            } emptyPane: { _ in
+                Color.clear
+            }
+        )
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        defer { window.orderOut(nil) }
+        guard let contentView = window.contentView else { return nil }
+
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.clear.cgColor
+        hostingView.frame = contentView.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        contentView.addSubview(hostingView)
+
+        window.makeKeyAndOrderFront(nil)
+        contentView.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        contentView.layoutSubtreeIfNeeded()
+
+        return renderedColor(in: hostingView, at: samplePoint)?.alphaComponent
+    }
+
+    @MainActor
+    private func renderedColor(in view: NSView, at point: NSPoint) -> NSColor? {
+        let integralBounds = view.bounds.integral
+        guard let bitmap = view.bitmapImageRepForCachingDisplay(in: integralBounds) else { return nil }
+        bitmap.size = integralBounds.size
+        view.cacheDisplay(in: integralBounds, to: bitmap)
+
+        let x = Int(point.x.rounded())
+        let y = Int(point.y.rounded())
+        guard x >= 0,
+              y >= 0,
+              x < bitmap.pixelsWide,
+              y < bitmap.pixelsHigh else { return nil }
+        return bitmap.colorAt(x: x, y: y)
     }
 }
