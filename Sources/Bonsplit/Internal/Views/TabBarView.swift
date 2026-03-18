@@ -143,10 +143,13 @@ struct TabContextMenuState {
     let isPinned: Bool
     let isUnread: Bool
     let isBrowser: Bool
+    let isTerminal: Bool
     let hasCustomTitle: Bool
     let canCloseToLeft: Bool
     let canCloseToRight: Bool
     let canCloseOthers: Bool
+    let canMoveToLeftPane: Bool
+    let canMoveToRightPane: Bool
     let isZoomed: Bool
     let hasSplits: Bool
     let shortcuts: [TabContextAction: KeyboardShortcut]
@@ -263,6 +266,13 @@ struct TabBarView: View {
                             Color.clear
                                 .frame(width: trailing, height: TabBarMetrics.tabHeight)
                                 .contentShape(Rectangle())
+                                .background(
+                                    EmptyTabBarDoubleClickMonitorView {
+                                        guard splitViewController.isInteractive else { return false }
+                                        controller.requestNewTab(kind: "terminal", inPane: pane.id)
+                                        return true
+                                    }
+                                )
                                 .onDrop(of: [.tabTransfer], delegate: TabDropDelegate(
                                     targetIndex: pane.tabs.count,
                                     pane: pane,
@@ -441,10 +451,13 @@ struct TabBarView: View {
             isPinned: tab.isPinned,
             isUnread: tab.showsNotificationBadge,
             isBrowser: tab.kind == "browser",
+            isTerminal: tab.kind == "terminal",
             hasCustomTitle: tab.hasCustomTitle,
             canCloseToLeft: canCloseToLeft,
             canCloseToRight: canCloseToRight,
             canCloseOthers: canCloseOthers,
+            canMoveToLeftPane: controller.adjacentPane(to: pane.id, direction: .left) != nil,
+            canMoveToRightPane: controller.adjacentPane(to: pane.id, direction: .right) != nil,
             isZoomed: splitViewController.zoomedPaneId == pane.id,
             hasSplits: splitViewController.rootNode.allPaneIds.count > 1,
             shortcuts: controller.contextMenuShortcuts
@@ -547,6 +560,13 @@ struct TabBarView: View {
             .fill(Color.clear)
             .frame(width: 30, height: TabBarMetrics.tabHeight)
             .contentShape(Rectangle())
+            .background(
+                EmptyTabBarDoubleClickMonitorView {
+                    guard splitViewController.isInteractive else { return false }
+                    controller.requestNewTab(kind: "terminal", inPane: pane.id)
+                    return true
+                }
+            )
             .onDrop(of: [.tabTransfer], delegate: TabDropDelegate(
                 targetIndex: pane.tabs.count,
                 pane: pane,
@@ -705,6 +725,53 @@ private struct SplitActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(TabBarColors.splitActionIcon(for: appearance, isPressed: configuration.isPressed))
+    }
+}
+
+private struct EmptyTabBarDoubleClickMonitorView: NSViewRepresentable {
+    let onDoubleClick: () -> Bool
+
+    final class Coordinator {
+        var onDoubleClick: (() -> Bool)?
+        weak var view: NSView?
+        var monitor: Any?
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+
+        context.coordinator.view = view
+        context.coordinator.onDoubleClick = onDoubleClick
+
+        let coordinator = context.coordinator
+        coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak coordinator] event in
+            guard event.clickCount >= 2 else { return event }
+            guard let coordinator, let view = coordinator.view, let window = view.window else { return event }
+            guard event.window === window else { return event }
+
+            let point = view.convert(event.locationInWindow, from: nil)
+            guard view.bounds.contains(point) else { return event }
+
+            guard coordinator.onDoubleClick?() == true else { return event }
+            return nil
+        }
+
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.view = nsView
+        context.coordinator.onDoubleClick = onDoubleClick
     }
 }
 
