@@ -33,19 +33,51 @@ private func performTabBarStandardDoubleClick(window: NSWindow?) -> Bool {
 }
 
 struct TabBarWindowDragRegion: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        TabBarWindowDragRegionView()
+    let onDoubleClick: (() -> Bool)?
+
+    init(onDoubleClick: (() -> Bool)? = nil) {
+        self.onDoubleClick = onDoubleClick
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> NSView {
+        let view = TabBarWindowDragRegionView()
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let nsView = nsView as? TabBarWindowDragRegionView else { return }
+        nsView.onDoubleClick = onDoubleClick
+    }
 }
 
 final class TabBarWindowDragRegionView: NSView {
+    var onDoubleClick: (() -> Bool)?
+    private var eventMonitor: Any?
+
     override var mouseDownCanMoveWindow: Bool { false }
 
+    deinit {
+        removeEventMonitor()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        removeEventMonitor()
+        if window != nil {
+            installEventMonitor()
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount >= 2, performTabBarStandardDoubleClick(window: window) {
-            return
+        if event.clickCount >= 2 {
+            if onDoubleClick?() == true {
+                return
+            }
+            if performTabBarStandardDoubleClick(window: window) {
+                return
+            }
         }
 
         guard let window else {
@@ -64,5 +96,47 @@ final class TabBarWindowDragRegionView: NSView {
         }
 
         window.performDrag(with: event)
+    }
+
+    private func installEventMonitor() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
+            self?.handleLocalMouseDown(event) ?? event
+        }
+    }
+
+    private func removeEventMonitor() {
+        guard let eventMonitor else { return }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
+    }
+
+    private func handleLocalMouseDown(_ event: NSEvent) -> NSEvent? {
+        guard let window else { return event }
+        guard event.window === window else { return event }
+
+        let point = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(point) else { return event }
+
+        if event.clickCount >= 2 {
+            if onDoubleClick?() == true {
+                return nil
+            }
+
+            return performTabBarStandardDoubleClick(window: window) ? nil : event
+        }
+
+        let previousMovableState = window.isMovable
+        if !previousMovableState {
+            window.isMovable = true
+        }
+        defer {
+            if window.isMovable != previousMovableState {
+                window.isMovable = previousMovableState
+            }
+        }
+
+        window.performDrag(with: event)
+        return nil
     }
 }

@@ -83,6 +83,23 @@ private final class TabBarInteractionContainerView: NSView {
             }
             current = view.superview
         }
+        return descendantWindowDragRegionContains(point: point, in: self)
+    }
+
+    private func descendantWindowDragRegionContains(point: NSPoint, in view: NSView) -> Bool {
+        if let dragRegionView = view as? TabBarWindowDragRegionView {
+            let pointInDragRegion = dragRegionView.convert(point, from: self)
+            if dragRegionView.bounds.contains(pointInDragRegion) {
+                return true
+            }
+        }
+
+        for subview in view.subviews {
+            if descendantWindowDragRegionContains(point: point, in: subview) {
+                return true
+            }
+        }
+
         return false
     }
 
