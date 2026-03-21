@@ -595,15 +595,29 @@ final class BonsplitTests: XCTestCase {
         XCTAssertNil(resolved)
     }
 
-    func testTabControlShortcutHintPolicyRequiresCommandOrControlOnly() {
+    func testTabControlShortcutHintPolicyMatchesConfiguredModifiers() {
         withShortcutHintDefaultsSuite { defaults in
             defaults.set(true, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
 
             XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults))
-            XCTAssertNotNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
             XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [], defaults: defaults))
             XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.control, .shift], defaults: defaults))
-            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command, .option], defaults: defaults))
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
+
+            defaults.set(
+                shortcutData(
+                    key: "1",
+                    command: true,
+                    shift: false,
+                    option: true,
+                    control: false
+                ),
+                forKey: "shortcut.selectSurfaceByNumber"
+            )
+
+            let custom = TabControlShortcutHintPolicy.hintModifier(for: [.command, .option], defaults: defaults)
+            XCTAssertEqual(custom?.symbol, "⌥⌘")
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults))
         }
     }
 
@@ -611,8 +625,8 @@ final class BonsplitTests: XCTestCase {
         withShortcutHintDefaultsSuite { defaults in
             defaults.set(false, forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
 
-            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
             XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults))
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
         }
     }
 
@@ -620,8 +634,8 @@ final class BonsplitTests: XCTestCase {
         withShortcutHintDefaultsSuite { defaults in
             defaults.removeObject(forKey: TabControlShortcutHintPolicy.showHintsOnCommandHoldKey)
 
-            XCTAssertEqual(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults), .command)
-            XCTAssertEqual(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults), .control)
+            XCTAssertEqual(TabControlShortcutHintPolicy.hintModifier(for: [.control], defaults: defaults)?.symbol, "⌃")
+            XCTAssertNil(TabControlShortcutHintPolicy.hintModifier(for: [.command], defaults: defaults))
         }
     }
 
@@ -631,7 +645,7 @@ final class BonsplitTests: XCTestCase {
 
             XCTAssertTrue(
                 TabControlShortcutHintPolicy.shouldShowHints(
-                    for: [.command],
+                    for: [.control],
                     hostWindowNumber: 42,
                     hostWindowIsKey: true,
                     eventWindowNumber: 42,
@@ -642,7 +656,7 @@ final class BonsplitTests: XCTestCase {
 
             XCTAssertFalse(
                 TabControlShortcutHintPolicy.shouldShowHints(
-                    for: [.command],
+                    for: [.control],
                     hostWindowNumber: 42,
                     hostWindowIsKey: true,
                     eventWindowNumber: 7,
@@ -653,7 +667,7 @@ final class BonsplitTests: XCTestCase {
 
             XCTAssertFalse(
                 TabControlShortcutHintPolicy.shouldShowHints(
-                    for: [.command],
+                    for: [.control],
                     hostWindowNumber: 42,
                     hostWindowIsKey: false,
                     eventWindowNumber: 42,
@@ -926,6 +940,23 @@ final class BonsplitTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         body(defaults)
         defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    private func shortcutData(
+        key: String,
+        command: Bool,
+        shift: Bool,
+        option: Bool,
+        control: Bool
+    ) -> Data {
+        let payload: [String: Any] = [
+            "key": key,
+            "command": command,
+            "shift": shift,
+            "option": option,
+            "control": control
+        ]
+        return try! JSONSerialization.data(withJSONObject: payload, options: [])
     }
 
     private func firstDescendant<T: NSView>(ofType type: T.Type, in root: NSView) -> T? {

@@ -635,19 +635,68 @@ private struct EmptyTabBarDoubleClickMonitorView: NSViewRepresentable {
     }
 }
 
-enum TabControlShortcutModifier: Equatable {
-    case control
-    case command
+private struct TabControlShortcutStoredShortcut: Decodable {
+    let key: String
+    let command: Bool
+    let shift: Bool
+    let option: Bool
+    let control: Bool
 
-    var symbol: String {
-        switch self {
-        case .control:
-            return "⌃"
-        case .command:
-            // Command-hold can reveal pane hints, but pane navigation itself is control-based.
-            return "⌃"
-        }
+    init(
+        key: String,
+        command: Bool,
+        shift: Bool,
+        option: Bool,
+        control: Bool
+    ) {
+        self.key = key
+        self.command = command
+        self.shift = shift
+        self.option = option
+        self.control = control
     }
+
+    var modifierFlags: NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if command { flags.insert(.command) }
+        if shift { flags.insert(.shift) }
+        if option { flags.insert(.option) }
+        if control { flags.insert(.control) }
+        return flags
+    }
+
+    var modifierSymbol: String {
+        var parts: [String] = []
+        if control { parts.append("⌃") }
+        if option { parts.append("⌥") }
+        if shift { parts.append("⇧") }
+        if command { parts.append("⌘") }
+        return parts.joined()
+    }
+}
+
+private enum TabControlShortcutSettings {
+    static let surfaceByNumberKey = "shortcut.selectSurfaceByNumber"
+    static let defaultShortcut = TabControlShortcutStoredShortcut(
+        key: "1",
+        command: false,
+        shift: false,
+        option: false,
+        control: true
+    )
+
+    static func surfaceByNumberShortcut(defaults: UserDefaults = .standard) -> TabControlShortcutStoredShortcut {
+        guard let data = defaults.data(forKey: surfaceByNumberKey),
+              let shortcut = try? JSONDecoder().decode(TabControlShortcutStoredShortcut.self, from: data) else {
+            return defaultShortcut
+        }
+        return shortcut
+    }
+}
+
+struct TabControlShortcutModifier: Equatable {
+    let modifierFlags: NSEvent.ModifierFlags
+    let symbol: String
 }
 
 enum TabControlShortcutHintPolicy {
@@ -668,9 +717,13 @@ enum TabControlShortcutHintPolicy {
     ) -> TabControlShortcutModifier? {
         guard showHintsOnCommandHoldEnabled(defaults: defaults) else { return nil }
         let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags == [.control] { return .control }
-        if flags == [.command] { return .command }
-        return nil
+            .subtracting([.numericPad, .function, .capsLock])
+        let shortcut = TabControlShortcutSettings.surfaceByNumberShortcut(defaults: defaults)
+        guard flags == shortcut.modifierFlags else { return nil }
+        return TabControlShortcutModifier(
+            modifierFlags: shortcut.modifierFlags,
+            symbol: shortcut.modifierSymbol
+        )
     }
 
     static func isCurrentWindow(
