@@ -53,6 +53,26 @@ public final class DebugEventLog: @unchecked Sendable {
         return "/tmp/cmux-debug.log"
     }
 
+    private static func append(_ data: Data, to path: String) {
+        if !FileManager.default.fileExists(atPath: path) {
+            _ = FileManager.default.createFile(atPath: path, contents: data)
+            return
+        }
+
+        let url = URL(fileURLWithPath: path)
+        do {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            // The log path can disappear between the existence check and open.
+            if !FileManager.default.fileExists(atPath: path) {
+                _ = FileManager.default.createFile(atPath: path, contents: data)
+            }
+        }
+    }
+
     public func log(_ msg: String) {
         let ts = Self.formatter.string(from: Date())
         let entry = "\(ts) \(msg)"
@@ -64,13 +84,7 @@ public final class DebugEventLog: @unchecked Sendable {
             // Append to file for real-time tail -f
             let line = entry + "\n"
             if let data = line.data(using: .utf8) {
-                if let handle = FileHandle(forWritingAtPath: Self.logPath) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    handle.closeFile()
-                } else {
-                    FileManager.default.createFile(atPath: Self.logPath, contents: data)
-                }
+                Self.append(data, to: Self.logPath)
             }
         }
     }
