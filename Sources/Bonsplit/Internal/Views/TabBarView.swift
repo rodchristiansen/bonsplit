@@ -682,6 +682,16 @@ private struct TabBarWindowDragView: NSViewRepresentable {
                 super.mouseDown(with: event)
                 return
             }
+            if event.clickCount >= 2 {
+                // Standard macOS titlebar double-click action (zoom or minimize
+                // based on System Settings > Desktop & Dock).
+                let action = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?["AppleActionOnDoubleClick"] as? String
+                switch action {
+                case "Minimize": window.miniaturize(nil)
+                default: window.zoom(nil)
+                }
+                return
+            }
             let wasMovable = window.isMovable
             window.isMovable = true
             window.performDrag(with: event)
