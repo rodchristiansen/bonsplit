@@ -65,6 +65,7 @@ struct TabBarView: View {
     let isFocused: Bool
     var showSplitButtons: Bool = true
 
+    @AppStorage("workspacePresentationMode") private var presentationMode = "standard"
     @State private var isHoveringTabBar = false
     @State private var dropTargetIndex: Int?
     @State private var dropLifecycle: TabDropLifecycle = .idle
@@ -186,7 +187,7 @@ struct TabBarView: View {
 
             // Split buttons
             if showSplitButtons {
-                let shouldShow = !appearance.splitButtonsOnHover || isHoveringTabBar
+                let shouldShow = presentationMode != "minimal" || isHoveringTabBar
                 splitButtons
                     .saturation(tabBarSaturation)
                     .opacity(shouldShow ? 1 : 0)
