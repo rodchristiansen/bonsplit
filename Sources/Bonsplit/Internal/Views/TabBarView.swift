@@ -100,34 +100,12 @@ struct TabBarView: View {
         isFocused && controlKeyMonitor.isShortcutHintVisible
     }
 
-    @State private var needsTrafficLightInset = false
-
-    private func updateTrafficLightInset(frame: CGRect) {
-        // In minimal mode with no sidebar, the leftmost panes need traffic
-        // light clearance. Check if this tab bar is near the leading edge
-        // of the window by comparing its global x position to the window's.
-        guard let window = NSApp.windows.first(where: { $0.isMainWindow || $0.isKeyWindow }) else {
-            let needs = presentationMode == "minimal" && frame.minX < 120
-            if needsTrafficLightInset != needs { needsTrafficLightInset = needs }
-            return
-        }
-        let windowMinX = window.frame.minX
-        let isNearLeading = frame.minX - windowMinX < 20
-        // Only the topmost row needs the inset. Check if the tab bar's top
-        // edge is near the window's top edge.
-        let windowMaxY = window.frame.maxY
-        let isNearTop = windowMaxY - frame.maxY < 60
-        let needs = presentationMode == "minimal" && isNearLeading && isNearTop
-        if needsTrafficLightInset != needs {
-            needsTrafficLightInset = needs
-        }
-    }
 
     var body: some View {
         HStack(spacing: 0) {
-            if needsTrafficLightInset {
+            if appearance.tabBarLeadingInset > 0 {
                 TabBarDragZoneView { return false }
-                    .frame(width: 80)
+                    .frame(width: appearance.tabBarLeadingInset)
             }
             // Scrollable tabs with fade overlays
             GeometryReader { containerGeo in
@@ -225,18 +203,6 @@ struct TabBarView: View {
             isMinimalMode: presentationMode == "minimal",
             onHoverChanged: { isHoveringTabBar = $0 }
         ))
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { updateTrafficLightInset(frame: geo.frame(in: .global)) }
-                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                        updateTrafficLightInset(frame: newFrame)
-                    }
-                    .onChange(of: presentationMode) { _, _ in
-                        updateTrafficLightInset(frame: geo.frame(in: .global))
-                    }
-            }
-        )
         .background(
             TabBarHostWindowReader { window in
                 controlKeyMonitor.setHostWindow(window)
