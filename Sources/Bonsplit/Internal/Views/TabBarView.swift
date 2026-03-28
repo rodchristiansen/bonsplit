@@ -103,7 +103,7 @@ struct TabBarView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if appearance.tabBarLeadingInset > 0 {
+            if appearance.tabBarLeadingInset > 0 && controller.internalController.rootNode.allPaneIds.first == pane.id {
                 TabBarDragZoneView { return false }
                     .frame(width: appearance.tabBarLeadingInset)
             }
