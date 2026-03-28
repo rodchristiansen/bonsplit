@@ -110,7 +110,7 @@ struct TabBarView: View {
         // Check if this is the topmost tab bar by seeing if the top edge is
         // near the window's top. Use a generous threshold since we can't easily
         // get the window frame from here.
-        let isNearTop = frame.maxY > NSScreen.main?.frame.maxY ?? 0 - 100
+        let isNearTop = frame.maxY > (NSScreen.main?.frame.maxY ?? 0) - 100
         let needs = presentationMode == "minimal" && isNearLeading && isNearTop
         if needsTrafficLightInset != needs {
             needsTrafficLightInset = needs
