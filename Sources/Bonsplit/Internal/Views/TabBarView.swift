@@ -102,6 +102,20 @@ struct TabBarView: View {
 
     @State private var needsTrafficLightInset = false
 
+    private func updateTrafficLightInset(frame: CGRect) {
+        // Only the top-left tab bar (near leading edge and near screen top) needs
+        // traffic light clearance. In global coordinates, minX near 0 means
+        // leftmost, and maxY near screen top means topmost.
+        let isNearLeading = frame.minX < 120
+        // Check if this is the topmost tab bar by seeing if the top edge is
+        // near the window's top. Use a generous threshold since we can't easily
+        // get the window frame from here.
+        let isNearTop = frame.maxY > NSScreen.main?.frame.maxY ?? 0 - 100
+        let needs = presentationMode == "minimal" && isNearLeading && isNearTop
+        if needsTrafficLightInset != needs {
+            needsTrafficLightInset = needs
+        }
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -203,9 +217,20 @@ struct TabBarView: View {
         .background(tabBarBackground)
         .background(TabBarDragAndHoverView(
             isMinimalMode: presentationMode == "minimal",
-            onHoverChanged: { isHoveringTabBar = $0 },
-            onLeadingEdgeChanged: { needsTrafficLightInset = $0 }
+            onHoverChanged: { isHoveringTabBar = $0 }
         ))
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { updateTrafficLightInset(frame: geo.frame(in: .global)) }
+                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
+                        updateTrafficLightInset(frame: newFrame)
+                    }
+                    .onChange(of: presentationMode) { _, _ in
+                        updateTrafficLightInset(frame: geo.frame(in: .global))
+                    }
+            }
+        )
         .background(
             TabBarHostWindowReader { window in
                 controlKeyMonitor.setHostWindow(window)
@@ -603,26 +628,22 @@ private struct SplitActionButtonStyle: ButtonStyle {
 private struct TabBarDragAndHoverView: NSViewRepresentable {
     let isMinimalMode: Bool
     let onHoverChanged: (Bool) -> Void
-    let onLeadingEdgeChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> TabBarBackgroundNSView {
         let view = TabBarBackgroundNSView()
         view.isMinimalMode = isMinimalMode
         view.onHoverChanged = onHoverChanged
-        view.onLeadingEdgeChanged = onLeadingEdgeChanged
         return view
     }
 
     func updateNSView(_ nsView: TabBarBackgroundNSView, context: Context) {
         nsView.isMinimalMode = isMinimalMode
         nsView.onHoverChanged = onHoverChanged
-        nsView.onLeadingEdgeChanged = onLeadingEdgeChanged
     }
 
     final class TabBarBackgroundNSView: NSView {
         var isMinimalMode = false
         var onHoverChanged: ((Bool) -> Void)?
-        var onLeadingEdgeChanged: ((Bool) -> Void)?
         private var hoverTrackingArea: NSTrackingArea?
 
         override var mouseDownCanMoveWindow: Bool { false }
@@ -647,27 +668,6 @@ private struct TabBarDragAndHoverView: NSViewRepresentable {
 
         override func mouseExited(with event: NSEvent) {
             onHoverChanged?(false)
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            updateLeadingEdge()
-        }
-
-        override func layout() {
-            super.layout()
-            updateLeadingEdge()
-        }
-
-        private func updateLeadingEdge() {
-            guard let window, let contentView = window.contentView else { return }
-            let windowPoint = convert(NSPoint.zero, to: contentView)
-            // Only the top-left pane needs the traffic light inset. Check both
-            // that we're near the leading edge (x < 20) and near the top of
-            // the window (within ~40pt of the content view top).
-            let distFromTop = contentView.bounds.height - (windowPoint.y + bounds.height)
-            let needsInset = isMinimalMode && windowPoint.x < 20 && distFromTop < 40
-            onLeadingEdgeChanged?(needsInset)
         }
 
         override func mouseDown(with event: NSEvent) {
